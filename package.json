@@ -1,0 +1,17 @@
+{
+  "name": "product-manager-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "product-management-server"
+  ],
+  "scripts": {
+    "postinstall": "npm --prefix product-management-server install",
+    "dev": "npm --prefix product-management-server run dev",
+    "build": "npm --prefix product-management-server run build",
+    "start": "npm --prefix product-management-server start"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
