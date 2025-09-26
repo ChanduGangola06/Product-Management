@@ -27277,15 +27277,15 @@ var require_pg_pool = __commonJS({
       });
       return { callback: cb, result };
     }
-    function makeIdleListener(pool2, client) {
+    function makeIdleListener(pool, client) {
       return function idleListener(err) {
         err.client = client;
         client.removeListener("error", idleListener);
         client.on("error", () => {
-          pool2.log("additional client error after disconnection due to error", err);
+          pool.log("additional client error after disconnection due to error", err);
         });
-        pool2._remove(client);
-        pool2.emit("error", err, client);
+        pool._remove(client);
+        pool.emit("error", err, client);
       };
     }
     var Pool2 = class extends EventEmitter {
@@ -32150,40 +32150,9 @@ var defaults = import_lib.default.defaults;
 // src/index.ts
 var app = (0, import_express.default)();
 var port = process.env.PORT ? Number(process.env.PORT) : 4e3;
+var isMockMode = !process.env.DATABASE_URL;
 app.use((0, import_cors.default)({ origin: true, credentials: true }));
 app.use(import_express.default.json());
-var pool = new Pool({ connectionString: process.env.DATABASE_URL });
-async function migrate() {
-  await pool.query(`CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        name TEXT
-    );`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS products (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL REFERENCES users(id),
-        name TEXT NOT NULL,
-        brand TEXT,
-        type TEXT,
-        warranty_period_months INTEGER,
-        start_date DATE,
-        serial_number TEXT,
-        notes TEXT,
-        created_at TIMESTAMPTZ NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL
-    );`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_user ON products(user_id);`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at DESC);`);
-}
-await migrate();
-async function ensureUser(userId) {
-  await pool.query("INSERT INTO users (id, name) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING", [userId, null]);
-}
-var getUserId = async (req) => {
-  const userId = req.header("X-User-Id");
-  if (!userId) return null;
-  await ensureUser(userId);
-  return userId;
-};
 var productInputSchema = external_exports.object({
   name: external_exports.string().min(1),
   brand: external_exports.string().optional().or(external_exports.literal("")),
@@ -32198,42 +32167,49 @@ var listQuerySchema = external_exports.object({
   offset: external_exports.coerce.number().int().min(0).default(0)
 });
 app.get("/health", (_req, res) => {
-  res.json({ ok: true });
+  res.json({ ok: true, mode: isMockMode ? "mock" : "db" });
 });
-app.get("/api/products", async (req, res, next) => {
-  try {
+if (isMockMode) {
+  console.warn("DATABASE_URL not set. Running API in MOCK MODE with in-memory storage.");
+  const products = [];
+  const getUserId = async (req) => {
+    const userId = req.header("X-User-Id");
+    if (!userId) return null;
+    return userId;
+  };
+  app.get("/api/products", async (req, res) => {
     const userId = await getUserId(req);
     if (!userId) return res.status(401).json({ error: "Missing X-User-Id" });
     const { limit, offset } = listQuerySchema.parse(req.query);
-    const { rows } = await pool.query(
-      `SELECT id, name, brand, type, warranty_period_months AS "warrantyPeriodMonths", to_char(start_date, 'YYYY-MM-DD') AS "startDate", serial_number AS "serialNumber", notes, created_at AS "createdAt", updated_at AS "updatedAt"
-             FROM products WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
-      [userId, limit, offset]
-    );
-    const total = (await pool.query("SELECT COUNT(*)::int AS count FROM products WHERE user_id = $1", [userId])).rows[0].count;
-    res.json({ items: rows, total, limit, offset });
-  } catch (err) {
-    next(err);
-  }
-});
-app.get("/api/products/:id", async (req, res, next) => {
-  try {
+    const all = products.filter((p) => p.userId === userId).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    const slice = all.slice(offset, offset + limit);
+    res.json({
+      items: slice.map((p) => ({
+        id: p.id,
+        name: p.name,
+        brand: p.brand,
+        type: p.type,
+        warrantyPeriodMonths: p.warrantyPeriodMonths ?? null,
+        startDate: p.startDate,
+        serialNumber: p.serialNumber,
+        notes: p.notes,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt
+      })),
+      total: all.length,
+      limit,
+      offset
+    });
+  });
+  app.get("/api/products/:id", async (req, res) => {
     const userId = await getUserId(req);
     if (!userId) return res.status(401).json({ error: "Missing X-User-Id" });
     const { id } = req.params;
-    const { rows } = await pool.query(
-      `SELECT id, name, brand, type, warranty_period_months AS "warrantyPeriodMonths", to_char(start_date, 'YYYY-MM-DD') AS "startDate", serial_number AS "serialNumber", notes, created_at AS "createdAt", updated_at AS "updatedAt"
-             FROM products WHERE id = $1 AND user_id = $2`,
-      [id, userId]
-    );
-    if (rows.length === 0) return res.status(404).json({ error: "Not found" });
-    res.json(rows[0]);
-  } catch (err) {
-    next(err);
-  }
-});
-app.post("/api/products", async (req, res, next) => {
-  try {
+    const found = products.find((p) => p.id === id && p.userId === userId);
+    if (!found) return res.status(404).json({ error: "Not found" });
+    res.json(found);
+  });
+  app.post("/api/products", async (req, res) => {
     const userId = await getUserId(req);
     if (!userId) return res.status(401).json({ error: "Missing X-User-Id" });
     const parse = productInputSchema.safeParse(req.body);
@@ -32243,28 +32219,120 @@ app.post("/api/products", async (req, res, next) => {
     const input = parse.data;
     const now = /* @__PURE__ */ new Date();
     const id = randomUUID();
-    await pool.query(
-      `INSERT INTO products (id, user_id, name, brand, type, warranty_period_months, start_date, serial_number, notes, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-      [
-        id,
-        userId,
-        input.name,
-        input.brand || null,
-        input.type || null,
-        input.warrantyPeriodMonths ?? null,
-        input.startDate || null,
-        input.serialNumber || null,
-        input.notes || null,
-        now,
-        now
-      ]
-    );
+    products.unshift({
+      id,
+      userId,
+      name: input.name,
+      brand: input.brand || null,
+      type: input.type || null,
+      warrantyPeriodMonths: input.warrantyPeriodMonths ?? null,
+      startDate: input.startDate || null,
+      serialNumber: input.serialNumber || null,
+      notes: input.notes || null,
+      createdAt: now,
+      updatedAt: now
+    });
     res.status(201).json({ id });
-  } catch (err) {
-    next(err);
+  });
+} else {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  async function migrate() {
+    await pool.query(`CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            name TEXT
+        );`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS products (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id),
+            name TEXT NOT NULL,
+            brand TEXT,
+            type TEXT,
+            warranty_period_months INTEGER,
+            start_date DATE,
+            serial_number TEXT,
+            notes TEXT,
+            created_at TIMESTAMPTZ NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL
+        );`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_user ON products(user_id);`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at DESC);`);
   }
-});
+  await migrate();
+  async function ensureUser(userId) {
+    await pool.query("INSERT INTO users (id, name) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING", [userId, null]);
+  }
+  const getUserId = async (req) => {
+    const userId = req.header("X-User-Id");
+    if (!userId) return null;
+    await ensureUser(userId);
+    return userId;
+  };
+  app.get("/api/products", async (req, res, next) => {
+    try {
+      const userId = await getUserId(req);
+      if (!userId) return res.status(401).json({ error: "Missing X-User-Id" });
+      const { limit, offset } = listQuerySchema.parse(req.query);
+      const { rows } = await pool.query(
+        `SELECT id, name, brand, type, warranty_period_months AS "warrantyPeriodMonths", to_char(start_date, 'YYYY-MM-DD') AS "startDate", serial_number AS "serialNumber", notes, created_at AS "createdAt", updated_at AS "updatedAt"
+                 FROM products WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+        [userId, limit, offset]
+      );
+      const total = (await pool.query("SELECT COUNT(*)::int AS count FROM products WHERE user_id = $1", [userId])).rows[0].count;
+      res.json({ items: rows, total, limit, offset });
+    } catch (err) {
+      next(err);
+    }
+  });
+  app.get("/api/products/:id", async (req, res, next) => {
+    try {
+      const userId = await getUserId(req);
+      if (!userId) return res.status(401).json({ error: "Missing X-User-Id" });
+      const { id } = req.params;
+      const { rows } = await pool.query(
+        `SELECT id, name, brand, type, warranty_period_months AS "warrantyPeriodMonths", to_char(start_date, 'YYYY-MM-DD') AS "startDate", serial_number AS "serialNumber", notes, created_at AS "createdAt", updated_at AS "updatedAt"
+                 FROM products WHERE id = $1 AND user_id = $2`,
+        [id, userId]
+      );
+      if (rows.length === 0) return res.status(404).json({ error: "Not found" });
+      res.json(rows[0]);
+    } catch (err) {
+      next(err);
+    }
+  });
+  app.post("/api/products", async (req, res, next) => {
+    try {
+      const userId = await getUserId(req);
+      if (!userId) return res.status(401).json({ error: "Missing X-User-Id" });
+      const parse = productInputSchema.safeParse(req.body);
+      if (!parse.success) {
+        return res.status(400).json({ error: "Invalid input", details: parse.error.flatten() });
+      }
+      const input = parse.data;
+      const now = /* @__PURE__ */ new Date();
+      const id = randomUUID();
+      await pool.query(
+        `INSERT INTO products (id, user_id, name, brand, type, warranty_period_months, start_date, serial_number, notes, created_at, updated_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [
+          id,
+          userId,
+          input.name,
+          input.brand || null,
+          input.type || null,
+          input.warrantyPeriodMonths ?? null,
+          input.startDate || null,
+          input.serialNumber || null,
+          input.notes || null,
+          now,
+          now
+        ]
+      );
+      res.status(201).json({ id });
+    } catch (err) {
+      next(err);
+    }
+  });
+}
 app.use((req, res, next) => {
   if (req.path.startsWith("/api")) {
     return res.status(404).json({ error: "Route not found" });
