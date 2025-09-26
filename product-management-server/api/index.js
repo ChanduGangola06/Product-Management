@@ -1,5 +1,7 @@
 import app from '../dist/index.js';
 
-export default app;
+export default (req, res) => {
+  return app(req, res);
+};
 
 
