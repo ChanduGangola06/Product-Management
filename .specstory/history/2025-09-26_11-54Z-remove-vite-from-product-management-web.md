@@ -903,3 +903,222 @@ Tool call timed out after 30s (read file)
 
 ---
 
+Let me check the current API call in the frontend and see if there's a routing issue:
+
+
+---
+
+```bash
+grep -n "api/products" src/product/App.tsx
+```
+
+```
+grep: src/product/App.tsx: No such file or directory
+```
+
+---
+
+```bash
+cd product-management-web && grep -n "api/products" src/product/App.tsx
+```
+
+```
+$ cd product-management-web && grep -n "api/products" src/product/App.tsx
+105:                    const data = await api<any>('/api/products');
+118:                    await api<{ id: string }>('/api/products', {
+```
+
+---
+
+The frontend is correctly calling `/api/products`. The issue is likely that:
+
+1. The backend isn't deployed or accessible
+2. The frontend's `VITE_API_BASE_URL` is pointing to the wrong URL
+3. The backend API routes aren't working
+
+Let me check what URL the frontend is actually calling by looking at the current API base URL setting:
+
+
+---
+
+```bash
+cd product-management-web && grep -A2 -B2 "VITE_API_BASE_URL" src/product/App.tsx
+```
+
+```
+tsx                                                                             
+bash: cd: product-management-web: No such file or directory
+```
+
+---
+
+```bash
+grep -A2 -B2 "VITE_API_BASE_URL" src/product/App.tsx
+```
+
+```
+$ grep -A2 -B2 "VITE_API_BASE_URL" src/product/App.tsx
+async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+    const userId = getOrCreateUserId();
+    const base = (import.meta as any)?.env?.VITE_API_BASE_URL || '';
+    const url = path.startsWith('http') ? path : `${base}${path}`;
+    const res = await fetch(url, {
+```
+
+---
+
+The frontend is using an empty base URL (same-origin), so it's trying to call `/api/products` on the same domain. The error "Cannot GET /products" suggests the request is going to `/products` instead of `/api/products`.
+
+This could be a Vercel routing issue. Let me check if the frontend's `vercel.json` is correctly configured:
+
+
+---
+
+Read file: undefined
+
+---
+
+The issue is that the frontend's `vercel.json` is rewriting ALL requests (including `/api/*`) to `/index.html`, which is why you're getting the HTML error page instead of API responses.
+
+For a frontend-only deployment, you need to either:
+
+1. **Option A**: Set `VITE_API_BASE_URL` to your backend's Vercel URL
+2. **Option B**: Configure the frontend to proxy API calls to the backend
+
+Let me update the frontend to use the backend URL. First, what's your backend's Vercel URL? If you don't have it yet, I'll show you how to set it up:
+
+
+---
+
+
+
+---
+
+I've updated the frontend's `vercel.json` to proxy `/api/*` requests to your backend. **Replace `your-backend-project.vercel.app` with your actual backend Vercel URL.**
+
+Alternatively, you can set the `VITE_API_BASE_URL` environment variable in your frontend Vercel project to your backend URL, then rebuild and redeploy.
+
+What's your backend's Vercel URL? I'll update the config with the correct URL.
+
+---
+
+_**User**_
+
+@https://product-management-server-zeta.vercel.app/ 
+
+---
+
+_**Assistant**_
+
+Perfect! I can see you've updated the `vercel.json` with your backend URL: `https://product-management-server-zeta.vercel.app`. 
+
+Now redeploy your frontend to Vercel and the API calls should work correctly. The frontend will:
+
+1. Make requests to `/api/products` 
+2. Vercel will proxy these to `https://product-management-server-zeta.vercel.app/api/products`
+3. Your backend will handle the request and return the data
+
+Try redeploying the frontend now. If you still get errors, check:
+
+1. **Backend health**: Visit `https://product-management-server-zeta.vercel.app/health` - should return `{"ok": true, "mode": "mock"}` or `{"ok": true, "mode": "db"}`
+
+2. **Backend API**: Visit `https://product-management-server-zeta.vercel.app/api/products` - should return a 401 error (missing X-User-Id header), which is expected
+
+3. **Frontend deployment**: Make sure the updated `vercel.json` is deployed
+
+Let me know if you need help with any of these checks!
+
+---
+
+_**User**_
+
+Backend API: Visit https://product-management-server-zeta.vercel.app/api/products - should return a 401 error (missing X-User-Id header), which is expected but showing 404: NOT_FOUND
+Code: NOT_FOUND
+ID: bom1::pfgwt-1758906546523-13863627ba9a
+
+---
+
+_**Assistant**_
+
+The 404 error suggests the backend API routes aren't being found. This is likely because the backend's `api/index.js` is trying to import from `../dist/index.js` but the build might not be working correctly on Vercel.
+
+Let me check and fix the backend's API entry point:
+
+
+---
+
+Read file: undefined
+
+---
+
+The issue is that `api/index.js` is trying to import from `../dist/index.js`, but Vercel might not have built the backend properly. Let me fix this by updating the API entry to use the source file directly:
+
+
+---
+
+
+
+---
+
+Actually, let me check if Vercel supports TypeScript directly in serverless functions. If not, we need to ensure the build process works. Let me revert and try a different approach:
+
+
+---
+
+
+
+---
+
+Let me check if the backend build is working by testing it locally first:
+
+
+---
+
+```bash
+cd ../product-management-server && npm run build
+```
+
+```
+$ cd ../product-management-server && npm run build
+
+> product-manager-server@0.1.0 build
+> esbuild src/index.ts --bundle --platform=node --format=esm --target=node18 --outfile=dist/index.js                                                            
+
+
+  dist\index.js  1.4mb
+
+Done in 9272ms
+```
+
+---
+
+The build works locally. The issue might be that Vercel isn't running the build step for the backend. Let me check if we need to add a build command to the backend's package.json or create a proper Vercel configuration.
+
+Let me add a `vercel-build` script to ensure Vercel builds the backend:
+
+
+---
+
+Read file: undefined
+
+---
+
+The `vercel-build` script is already there. The issue might be that Vercel isn't running the build for serverless functions. Let me create a simple `vercel.json` for the backend to ensure it builds:
+
+
+---
+
+
+
+---
+
+Now redeploy your backend to Vercel. The build should run and create the `dist/index.js` file that the API function needs.
+
+After redeployment, test:
+1. `https://product-management-server-zeta.vercel.app/health` - should work
+2. `https://product-management-server-zeta.vercel.app/api/products` - should return 401 (not 404)
+
+If it still doesn't work, we might need to check the Vercel deployment logs to see what's happening during the build process.
+
+---
+
