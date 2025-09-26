@@ -50,8 +50,10 @@ function getOrCreateUserId(): string {
 }
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-	const userId = getOrCreateUserId();
-	const res = await fetch(path, {
+    const userId = getOrCreateUserId();
+    const base = (import.meta as any)?.env?.VITE_API_BASE_URL || 'https://product-management-product-manageme.vercel.app';
+    const url = path.startsWith('http') ? path : `${base}${path}`;
+    const res = await fetch(url, {
 		...options,
 		headers: {
 			'Content-Type': 'application/json',
