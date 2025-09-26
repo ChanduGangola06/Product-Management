@@ -51,7 +51,7 @@ function getOrCreateUserId(): string {
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
     const userId = getOrCreateUserId();
-    const base = (import.meta as any)?.env?.VITE_API_BASE_URL || '';
+    const base = (import.meta as any)?.env?.VITE_API_BASE_URL || 'https://product-management-server-zeta.vercel.app';
     const url = path.startsWith('http') ? path : `${base}${path}`;
     const res = await fetch(url, {
 		...options,

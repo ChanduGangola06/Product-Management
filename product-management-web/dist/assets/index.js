@@ -28567,7 +28567,7 @@ function getOrCreateUserId() {
 }
 async function api(path, options = {}) {
   const userId = getOrCreateUserId();
-  const base = "";
+  const base = "https://product-management-server-zeta.vercel.app";
   const url = path.startsWith("http") ? path : `${base}${path}`;
   const res = await fetch(url, {
     ...options,
