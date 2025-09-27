@@ -51,12 +51,14 @@ function getOrCreateUserId(): string {
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
     const userId = getOrCreateUserId();
-    // In development, use relative paths to leverage the proxy
-    // In production, use the environment variable or fallback to production URL
+    // In development, use localhost. In production, use the deployed server URL
     const isDev = typeof window !== 'undefined' && window.location.hostname === 'localhost';
     const base = (import.meta as any)?.env?.VITE_API_BASE_URL || 
         (isDev ? 'http://localhost:4000' : 'https://product-management-server-zeta.vercel.app');
     const url = path.startsWith('http') ? path : `${base}${path}`;
+    
+    console.log('API Request:', { url, path, base, isDev }); // Debug logging
+    
     const res = await fetch(url, {
 		...options,
 		headers: {
@@ -65,8 +67,12 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
 			...(options.headers || {}),
 		},
 	});
+	
+	console.log('API Response:', { status: res.status, statusText: res.statusText, url }); // Debug logging
+	
 	if (!res.ok) {
 		const text = await res.text();
+		console.error('API Error:', { status: res.status, text, url }); // Debug logging
 		throw new Error(text || `${res.status} ${res.statusText}`);
 	}
 	return res.json();

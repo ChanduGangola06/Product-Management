@@ -12,6 +12,16 @@ const isMockMode = !process.env.DATABASE_URL;
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
+// Debug middleware
+app.use((req, res, next) => {
+    console.log(`${req.method} ${req.path}`, {
+        headers: req.headers,
+        body: req.body,
+        query: req.query
+    });
+    next();
+});
+
 // Schemas
 const productInputSchema = z.object({
     name: z.string().min(1),

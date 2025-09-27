@@ -4,8 +4,6 @@
     { "src": "package.json", "use": "@vercel/static-build", "config": { "distDir": "dist" } }
   ],
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://product-management-server-zeta.vercel.app/api/$1" },
-    { "source": "/health", "destination": "https://product-management-server-zeta.vercel.app/health" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
