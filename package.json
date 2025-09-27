@@ -6,10 +6,14 @@
     "product-management-server"
   ],
   "scripts": {
-    "postinstall": "npm --prefix product-management-server install",
-    "dev": "npm --prefix product-management-server run dev",
-    "build": "npm --prefix product-management-server run build",
-    "start": "npm --prefix product-management-server start"
+    "postinstall": "npm --prefix product-management-server install && npm --prefix product-management-web install",
+    "dev": "node start-dev.mjs",
+    "dev:server": "npm --prefix product-management-server run dev",
+    "dev:web": "npm --prefix product-management-web run dev",
+    "build": "npm --prefix product-management-server run build && npm --prefix product-management-web run build",
+    "start": "npm --prefix product-management-server start",
+    "clean": "npm --prefix product-management-server run clean && npm --prefix product-management-web run clean",
+    "test": "npm --prefix product-management-server run test && npm --prefix product-management-web run test"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

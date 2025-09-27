@@ -144,7 +144,10 @@ if (isMockMode) {
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at DESC);`);
     }
 
-    await migrate();
+    // Only run migration if not in mock mode
+    if (!isMockMode) {
+        await migrate();
+    }
 
     // Simple auth via header
     async function ensureUser(userId: string): Promise<void> {

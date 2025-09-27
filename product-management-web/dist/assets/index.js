@@ -28567,7 +28567,8 @@ function getOrCreateUserId() {
 }
 async function api(path, options = {}) {
   const userId = getOrCreateUserId();
-  const base = "https://product-management-server-zeta.vercel.app";
+  const isDev = typeof window !== "undefined" && window.location.hostname === "localhost";
+  const base = isDev ? "http://localhost:4000" : "https://product-management-server-zeta.vercel.app";
   const url = path.startsWith("http") ? path : `${base}${path}`;
   const res = await fetch(url, {
     ...options,

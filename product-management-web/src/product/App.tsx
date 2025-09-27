@@ -51,7 +51,11 @@ function getOrCreateUserId(): string {
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
     const userId = getOrCreateUserId();
-    const base = (import.meta as any)?.env?.VITE_API_BASE_URL || 'https://product-management-server-zeta.vercel.app';
+    // In development, use relative paths to leverage the proxy
+    // In production, use the environment variable or fallback to production URL
+    const isDev = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+    const base = (import.meta as any)?.env?.VITE_API_BASE_URL || 
+        (isDev ? 'http://localhost:4000' : 'https://product-management-server-zeta.vercel.app');
     const url = path.startsWith('http') ? path : `${base}${path}`;
     const res = await fetch(url, {
 		...options,

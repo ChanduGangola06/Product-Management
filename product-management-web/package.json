@@ -7,7 +7,9 @@
     "dev": "node scripts/dev.mjs",
     "build": "node scripts/build.mjs",
     "preview": "node scripts/preview.mjs",
-    "vercel-build": "npm run build"
+    "vercel-build": "npm run build",
+    "clean": "rm -rf dist/",
+    "test": "echo 'No tests configured yet'"
   },
   "dependencies": {
     "react": "^18.3.1",
