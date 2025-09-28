@@ -28570,6 +28570,7 @@ async function api(path, options = {}) {
   const isDev = typeof window !== "undefined" && window.location.hostname === "localhost";
   const base = isDev ? "http://localhost:4000" : "https://product-management-server-zeta.vercel.app";
   const url = path.startsWith("http") ? path : `${base}${path}`;
+  console.log("API Request:", { url, path, base, isDev, env: "" });
   const res = await fetch(url, {
     ...options,
     headers: {
@@ -28578,8 +28579,10 @@ async function api(path, options = {}) {
       ...options.headers || {}
     }
   });
+  console.log("API Response:", { status: res.status, statusText: res.statusText, url });
   if (!res.ok) {
     const text = await res.text();
+    console.error("API Error:", { status: res.status, text, url });
     throw new Error(text || `${res.status} ${res.statusText}`);
   }
   return res.json();

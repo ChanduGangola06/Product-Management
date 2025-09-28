@@ -32151,8 +32151,26 @@ var defaults = import_lib.default.defaults;
 var app = (0, import_express.default)();
 var port = process.env.PORT ? Number(process.env.PORT) : 4e3;
 var isMockMode = !process.env.DATABASE_URL;
-app.use((0, import_cors.default)({ origin: true, credentials: true }));
+app.use((0, import_cors.default)({
+  origin: [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://product-management-web-beige.vercel.app",
+    "https://product-management-web.vercel.app"
+  ],
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-User-Id"]
+}));
 app.use(import_express.default.json());
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path}`, {
+    headers: req.headers,
+    body: req.body,
+    query: req.query
+  });
+  next();
+});
 var productInputSchema = external_exports.object({
   name: external_exports.string().min(1),
   brand: external_exports.string().optional().or(external_exports.literal("")),
@@ -32257,7 +32275,9 @@ if (isMockMode) {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_user ON products(user_id);`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at DESC);`);
   }
-  await migrate();
+  if (!isMockMode) {
+    await migrate();
+  }
   async function ensureUser(userId) {
     await pool.query("INSERT INTO users (id, name) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING", [userId, null]);
   }
