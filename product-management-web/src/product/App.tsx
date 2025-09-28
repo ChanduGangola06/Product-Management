@@ -53,11 +53,14 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
     const userId = getOrCreateUserId();
     // In development, use localhost. In production, use the deployed server URL
     const isDev = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+    
+    // Explicitly set the correct API base URL
     const base = (import.meta as any)?.env?.VITE_API_BASE_URL || 
         (isDev ? 'http://localhost:4000' : 'https://product-management-server-zeta.vercel.app');
+    
     const url = path.startsWith('http') ? path : `${base}${path}`;
     
-    console.log('API Request:', { url, path, base, isDev }); // Debug logging
+    console.log('API Request:', { url, path, base, isDev, env: (import.meta as any)?.env?.VITE_API_BASE_URL }); // Debug logging
     
     const res = await fetch(url, {
 		...options,

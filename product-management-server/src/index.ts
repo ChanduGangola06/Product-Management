@@ -9,7 +9,18 @@ const app = express();
 const port = process.env.PORT ? Number(process.env.PORT) : 4000;
 const isMockMode = !process.env.DATABASE_URL;
 
-app.use(cors({ origin: true, credentials: true }));
+// Enhanced CORS configuration for Vercel deployment
+app.use(cors({ 
+    origin: [
+        'http://localhost:3000',
+        'http://localhost:5173', 
+        'https://product-management-web-beige.vercel.app',
+        'https://product-management-web.vercel.app'
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Id']
+}));
 app.use(express.json());
 
 // Debug middleware
