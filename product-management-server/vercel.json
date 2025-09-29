@@ -6,14 +6,14 @@
       "runtime": "@vercel/node@3.0.7"
     }
   },
-  "routes": [
+  "rewrites": [
     {
-      "src": "/health",
-      "dest": "/src/index.ts"
+      "source": "/health",
+      "destination": "/src/index.ts"
     },
     {
-      "src": "/api/(.*)",
-      "dest": "/src/index.ts"
+      "source": "/api/(.*)",
+      "destination": "/src/index.ts"
     }
   ],
   "headers": [
