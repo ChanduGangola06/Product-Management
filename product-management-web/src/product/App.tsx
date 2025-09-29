@@ -56,7 +56,7 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
     
     // Explicitly set the correct API base URL
     const base = (import.meta as any)?.env?.VITE_API_BASE_URL || 
-        (isDev ? 'http://localhost:4000' : 'https://product-management-server-zeta.vercel.app');
+        (isDev ? 'http://localhost:4000' : 'https://product-management-server-xi.vercel.app');
     
     const url = path.startsWith('http') ? path : `${base}${path}`;
     
