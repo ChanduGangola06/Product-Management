@@ -9,14 +9,31 @@ const app = express();
 const port = process.env.PORT ? Number(process.env.PORT) : 4000;
 const isMockMode = !process.env.DATABASE_URL;
 
-// Enhanced CORS configuration for Vercel deployment
-app.use(cors({ 
-    origin: [
-        'http://localhost:3000',
-        'http://localhost:5173', 
-        'https://product-management-web-beige.vercel.app',
-        'https://product-management-web.vercel.app'
-    ],
+// Enhanced and dynamic CORS configuration for Vercel deployment
+const staticAllowedOrigins = new Set<string>([
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'https://product-management-web.vercel.app',
+]);
+
+// Allow preview/web deployments: https://product-management-web-<suffix>.vercel.app
+const vercelPreviewRegex = /^https:\/\/product-management-web-[a-z0-9-]+\.vercel\.app$/;
+
+// Also allow explicit override via env (comma-separated)
+const extraAllowed = (process.env.CORS_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+for (const origin of extraAllowed) staticAllowedOrigins.add(origin);
+
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow non-browser requests or same-origin
+        if (!origin) return callback(null, true);
+        if (staticAllowedOrigins.has(origin)) return callback(null, true);
+        if (vercelPreviewRegex.test(origin)) return callback(null, true);
+        return callback(new Error(`CORS: Origin not allowed: ${origin}`));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Id']
